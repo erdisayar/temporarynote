@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickPaste — Temporary Note Pad</title>
+    <meta name="description"
+        content="A temporary note-taking web page for accumulating voice-to-text snippets sequentially.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ── Reset & Variables ─────────────────────────────── */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #0f0f1a;
+            --surface: rgba(255, 255, 255, 0.04);
+            --surface-hover: rgba(255, 255, 255, 0.07);
+            --glass: rgba(255, 255, 255, 0.06);
+            --glass-border: rgba(255, 255, 255, 0.10);
+            --accent: #7c6aff;
+            --accent-glow: rgba(124, 106, 255, 0.35);
+            --accent2: #38bdf8;
+            --accent2-glow: rgba(56, 189, 248, 0.25);
+            --danger: #f87171;
+            --danger-glow: rgba(248, 113, 113, 0.25);
+            --success: #4ade80;
+            --text: #e2e8f0;
+            --text-dim: #94a3b8;
+            --text-muted: #64748b;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --transition: 0.25s cubic-bezier(.4, 0, .2, 1);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* ── Background Decoration ─────────────────────────── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 10%, var(--accent-glow) 0%, transparent 70%),
+                radial-gradient(ellipse 500px 350px at 80% 90%, var(--accent2-glow) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Header ────────────────────────────────────────── */
+        header {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 48px 24px 20px;
+        }
+
+        header h1 {
+            font-size: 2.4rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        header p {
+            color: var(--text-dim);
+            font-size: 1rem;
+            margin-top: 6px;
+            font-weight: 300;
+        }
+
+        /* ── Main Layout ───────────────────────────────────── */
+        main {
+            position: relative;
+            z-index: 1;
+            max-width: 1000px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 0 24px 64px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+
+        /* ── Glass Card ────────────────────────────────────── */
+        .card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            padding: 32px;
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            transition: border-color var(--transition);
+        }
+
+        .card:hover {
+            border-color: rgba(255, 255, 255, 0.16);
+        }
+
+        .card-title {
+            font-size: 0.88rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .card-title .icon {
+            font-size: 1.1rem;
+        }
+
+        /* ── Textarea ──────────────────────────────────────── */
+        #inputArea {
+            width: 100%;
+            min-height: 200px;
+            background: var(--surface);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 1rem;
+            line-height: 1.7;
+            padding: 18px;
+            resize: vertical;
+            transition: border-color var(--transition), box-shadow var(--transition);
+            outline: none;
+        }
+
+        #inputArea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        #inputArea::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* ── Buttons ───────────────────────────────────────── */
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 24px;
+            cursor: pointer;
+            transition: transform var(--transition), box-shadow var(--transition), background var(--transition);
+        }
+
+        .btn:active {
+            transform: scale(0.96);
+        }
+
+        .btn .icon {
+            font-size: 1.1rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #9b8aff);
+            color: #fff;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 28px var(--accent-glow);
+        }
+
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text-dim);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--surface-hover);
+            color: var(--text);
+        }
+
+        .btn-danger {
+            background: rgba(248, 113, 113, 0.12);
+            color: var(--danger);
+            border: 1px solid rgba(248, 113, 113, 0.2);
+        }
+
+        .btn-danger:hover {
+            background: rgba(248, 113, 113, 0.2);
+        }
+
+        .btn-success {
+            background: rgba(74, 222, 128, 0.12);
+            color: var(--success);
+            border: 1px solid rgba(74, 222, 128, 0.2);
+        }
+
+        .btn-success:hover {
+            background: rgba(74, 222, 128, 0.2);
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 0.82rem;
+            border-radius: 8px;
+        }
+
+        /* ── Big Copy Button ─────────────────────────────── */
+        .btn-copy-main {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 14px 32px;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(34, 197, 94, 0.35);
+            width: 100%;
+            justify-content: center;
+            margin-top: 16px;
+        }
+
+        .btn-copy-main:hover {
+            box-shadow: 0 6px 32px rgba(34, 197, 94, 0.5);
+        }
+
+        .btn-copy-main .icon {
+            font-size: 1.2rem;
+        }
+
+        /* ── Notes List ────────────────────────────────────── */
+        .notes-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .notes-header .card-title {
+            margin-bottom: 0;
+        }
+
+        #notesList {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .note-item {
+            background: var(--surface);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            padding: 20px;
+            position: relative;
+            animation: noteIn 0.35s ease-out;
+            transition: border-color var(--transition);
+        }
+
+        .note-item:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        @keyframes noteIn {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .note-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .note-time {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            letter-spacing: 0.02em;
+        }
+
+        .note-number {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--accent);
+            background: rgba(124, 106, 255, 0.12);
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+
+        .note-text {
+            font-size: 0.95rem;
+            line-height: 1.7;
+            color: var(--text);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .note-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        /* ── Combined Text ─────────────────────────────────── */
+        #combinedCard {
+            display: none;
+        }
+
+        #combinedCard.visible {
+            display: block;
+        }
+
+        #combinedText {
+            width: 100%;
+            min-height: 180px;
+            background: var(--surface);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 1rem;
+            line-height: 1.7;
+            padding: 18px;
+            resize: vertical;
+            outline: none;
+            cursor: default;
+        }
+
+        /* ── Empty State ───────────────────────────────────── */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state .emoji {
+            font-size: 2.4rem;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            font-size: 0.9rem;
+        }
+
+        /* ── Toast ─────────────────────────────────────────── */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            background: rgba(30, 30, 50, 0.92);
+            border: 1px solid var(--glass-border);
+            color: var(--text);
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            backdrop-filter: blur(12px);
+            animation: toastIn 0.3s ease-out, toastOut 0.3s ease-in 2s forwards;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateY(16px) scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes toastOut {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+        }
+
+        /* ── Keyboard Shortcut Hint ─────────────────────────── */
+        .shortcut-hints {
+            text-align: center;
+            margin-top: -10px;
+        }
+
+        .shortcut-hints kbd {
+            display: inline-block;
+            background: var(--surface);
+            border: 1px solid var(--glass-border);
+            border-radius: 5px;
+            padding: 2px 7px;
+            font-family: inherit;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        .shortcut-hints span {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* ── Separator / Joiner Select ──────────────────────── */
+        .join-options {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.82rem;
+            color: var(--text-dim);
+        }
+
+        .join-options select {
+            background: #1e1e2e;
+            border: 1px solid var(--glass-border);
+            color: var(--text);
+            padding: 5px 10px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.82rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .join-options select option {
+            background: #1e1e2e;
+            color: var(--text);
+        }
+
+        /* ── Responsive ────────────────────────────────────── */
+        @media (max-width: 600px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+
+            main {
+                padding: 0 14px 48px;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .btn-row {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .btn-copy-main {
+                padding: 14px 20px;
+            }
+        }
+
+        /* ── Drag indicator ────────────────────────────────── */
+        .note-item.dragging {
+            opacity: 0.5;
+            border-color: var(--accent);
+        }
+
+        .note-item.drag-over {
+            border-color: var(--accent2);
+            box-shadow: 0 0 0 2px var(--accent2-glow);
+        }
+
+        /* ── Character count ───────────────────────────────── */
+        .char-count {
+            text-align: right;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        /* ── Footer ────────────────────────────────────────── */
+        footer {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 20px;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>✦ QuickPaste</h1>
+        <p>Accumulate your voice-to-text snippets — never lose a word.</p>
+    </header>
+
+    <main>
+
+        <!-- ── Input Card ──────────────────────────────── -->
+        <section class="card" id="inputCard">
+            <div class="card-title"><span class="icon">📝</span> Paste or Type Your Text</div>
+            <textarea id="inputArea" placeholder="Paste your voice-to-text output here…" spellcheck="false"></textarea>
+            <div class="char-count"><span id="charCount">0</span> characters</div>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="addBtn" title="Add note (Ctrl+Enter)">
+                    <span class="icon">➕</span> Add to Notes
+                </button>
+                <button class="btn btn-secondary" id="clearInputBtn" title="Clear input">
+                    <span class="icon">🗑️</span> Clear
+                </button>
+            </div>
+            <div class="shortcut-hints" style="margin-top: 10px;">
+                <kbd>Ctrl</kbd> + <kbd>Enter</kbd> <span>to add quickly</span>
+            </div>
+        </section>
+
+        <!-- ── Combined Text Card ──────────────────────── -->
+        <section class="card" id="combinedCard">
+            <div class="notes-header">
+                <div class="card-title"><span class="icon">📋</span> Combined Text</div>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <div class="join-options">
+                        <label for="separator">Join with:</label>
+                        <select id="separator">
+                            <option value=" ">Space</option>
+                            <option value="\n">New Line</option>
+                            <option value="\n\n" selected>Double New Line</option>
+                            <option value=" — ">Dash</option>
+                            <option value=". ">Period + Space</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-success btn-sm" id="copyCombinedBtn">
+                        <span class="icon">📋</span> Copy All
+                    </button>
+                </div>
+            </div>
+            <textarea id="combinedText" readonly></textarea>
+            <div class="char-count">Combined: <span id="combinedCharCount">0</span> characters</div>
+            <button class="btn btn-copy-main" id="copyMergedBtn">
+                <span class="icon">📋</span> Copy Merged Text
+            </button>
+            <div class="shortcut-hints" style="margin-top: 8px;">
+                <kbd>Ctrl</kbd> + <kbd>C</kbd> <span>to copy merged text instantly</span>
+            </div>
+        </section>
+
+        <!-- ── Notes List Card ─────────────────────────── -->
+        <section class="card">
+            <div class="notes-header">
+                <div class="card-title"><span class="icon">📌</span> Saved Snippets (<span id="notesCount">0</span>)
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-danger btn-sm" id="clearAllBtn" style="display:none;">
+                        <span class="icon">🗑️</span> Clear All
+                    </button>
+                </div>
+            </div>
+            <div id="notesList">
+                <div class="empty-state" id="emptyState">
+                    <div class="emoji">📭</div>
+                    <p>No snippets yet. Paste text above and click <strong>Add to Notes</strong>.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer>
+        QuickPaste &mdash; Your temporary note accumulator. Data stored in your browser only.
+    </footer>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // ── State ──────────────────────────────────────────
+        const STORAGE_KEY = 'quickpaste_notes';
+        let notes = loadNotes();
+
+        // ── DOM Refs ──────────────────────────────────────
+        const inputArea = document.getElementById('inputArea');
+        const charCount = document.getElementById('charCount');
+        const addBtn = document.getElementById('addBtn');
+        const clearInputBtn = document.getElementById('clearInputBtn');
+        const notesList = document.getElementById('notesList');
+        const notesCount = document.getElementById('notesCount');
+        const emptyState = document.getElementById('emptyState');
+        const clearAllBtn = document.getElementById('clearAllBtn');
+        const combinedCard = document.getElementById('combinedCard');
+        const combinedText = document.getElementById('combinedText');
+        const combinedCharCnt = document.getElementById('combinedCharCount');
+        const copyCombinedBtn = document.getElementById('copyCombinedBtn');
+        const separatorSelect = document.getElementById('separator');
+
+        // ── Init ──────────────────────────────────────────
+        renderNotes();
+        inputArea.focus();
+
+        // ── Event Listeners ───────────────────────────────
+        inputArea.addEventListener('input', () => {
+            charCount.textContent = inputArea.value.length;
+        });
+
+        addBtn.addEventListener('click', addNote);
+        clearInputBtn.addEventListener('click', () => {
+            inputArea.value = '';
+            charCount.textContent = '0';
+            inputArea.focus();
+        });
+
+        clearAllBtn.addEventListener('click', () => {
+            notes = [];
+            saveNotes();
+            renderNotes();
+            toast('All snippets cleared');
+        });
+
+        copyCombinedBtn.addEventListener('click', copyCombined);
+
+        const copyMergedBtn = document.getElementById('copyMergedBtn');
+        copyMergedBtn.addEventListener('click', copyCombined);
+
+        separatorSelect.addEventListener('change', updateCombined);
+
+        function copyCombined() {
+            const text = combinedText.value;
+            if (!text) {
+                toast('No merged text to copy yet.');
+                return;
+            }
+            navigator.clipboard.writeText(text).then(() => toast('Merged text copied to clipboard! ✅'));
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+Enter: add note
+            if (e.ctrlKey && !e.shiftKey && e.key === 'Enter') {
+                e.preventDefault();
+                addNote();
+            }
+            // Ctrl+C: copy merged text (when nothing is selected)
+            if (e.ctrlKey && !e.shiftKey && (e.key === 'C' || e.key === 'c') && !window.getSelection().toString()) {
+                e.preventDefault();
+                copyCombined();
+            }
+        });
+
+        // ── Core Functions ────────────────────────────────
+        function addNote() {
+            const text = inputArea.value.trim();
+            if (!text) {
+                toast('Nothing to add — paste some text first.');
+                inputArea.focus();
+                return;
+            }
+            const note = {
+                id: Date.now() + Math.random().toString(36).slice(2, 6),
+                text,
+                timestamp: new Date().toISOString()
+            };
+            notes.push(note);
+            saveNotes();
+            renderNotes();
+            inputArea.value = '';
+            charCount.textContent = '0';
+            inputArea.focus();
+            toast('Snippet added! 📌');
+        }
+
+        function deleteNote(id) {
+            notes = notes.filter(n => n.id !== id);
+            saveNotes();
+            renderNotes();
+            toast('Snippet removed');
+        }
+
+        function copyNote(id) {
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+            navigator.clipboard.writeText(note.text).then(() => toast('Copied! ✅'));
+        }
+
+        function editNote(id) {
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+            const el = document.querySelector(`[data-id="${id}"] .note-text`);
+            if (!el) return;
+
+            const textarea = document.createElement('textarea');
+            textarea.value = note.text;
+            textarea.style.cssText = `
+        width:100%; min-height:80px; background:var(--surface);
+        border:1px solid var(--accent); border-radius:8px;
+        color:var(--text); font-family:inherit; font-size:0.92rem;
+        line-height:1.7; padding:12px; resize:vertical; outline:none;
+      `;
+            el.replaceWith(textarea);
+            textarea.focus();
+
+            const saveEdit = () => {
+                const newText = textarea.value.trim();
+                if (newText) {
+                    note.text = newText;
+                    saveNotes();
+                }
+                renderNotes();
+            };
+
+            textarea.addEventListener('blur', saveEdit);
+            textarea.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); saveEdit(); }
+                if (e.key === 'Escape') { renderNotes(); }
+            });
+        }
+
+        // ── Rendering ─────────────────────────────────────
+        function renderNotes() {
+            notesList.innerHTML = '';
+            notesCount.textContent = notes.length;
+
+            if (notes.length === 0) {
+                notesList.innerHTML = `
+          <div class="empty-state" id="emptyState">
+            <div class="emoji">📭</div>
+            <p>No snippets yet. Paste text above and click <strong>Add to Notes</strong>.</p>
+          </div>`;
+                clearAllBtn.style.display = 'none';
+                combinedCard.classList.remove('visible');
+                return;
+            }
+
+            clearAllBtn.style.display = '';
+            combinedCard.classList.add('visible');
+
+            notes.forEach((note, idx) => {
+                const el = document.createElement('div');
+                el.className = 'note-item';
+                el.setAttribute('data-id', note.id);
+                el.draggable = true;
+
+                const time = new Date(note.timestamp);
+                const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const dateStr = time.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+                el.innerHTML = `
+          <div class="note-meta">
+            <span class="note-number">#${idx + 1}</span>
+            <span class="note-time">${dateStr} · ${timeStr}</span>
+          </div>
+          <div class="note-text">${escapeHtml(note.text)}</div>
+          <div class="note-actions">
+            <button class="btn btn-secondary btn-sm" onclick="copyNote('${note.id}')" title="Copy">
+              <span class="icon">📋</span> Copy
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="editNote('${note.id}')" title="Edit">
+              <span class="icon">✏️</span> Edit
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="deleteNote('${note.id}')" title="Delete">
+              <span class="icon">✕</span>
+            </button>
+          </div>`;
+
+                // Drag & Drop
+                el.addEventListener('dragstart', (e) => {
+                    el.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', note.id);
+                });
+                el.addEventListener('dragend', () => el.classList.remove('dragging'));
+                el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('drag-over'); });
+                el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+                el.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    el.classList.remove('drag-over');
+                    const draggedId = e.dataTransfer.getData('text/plain');
+                    reorderNotes(draggedId, note.id);
+                });
+
+                notesList.appendChild(el);
+            });
+
+            updateCombined();
+        }
+
+        function reorderNotes(draggedId, targetId) {
+            const fromIdx = notes.findIndex(n => n.id === draggedId);
+            const toIdx = notes.findIndex(n => n.id === targetId);
+            if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+            const [moved] = notes.splice(fromIdx, 1);
+            notes.splice(toIdx, 0, moved);
+            saveNotes();
+            renderNotes();
+        }
+
+        function updateCombined() {
+            const sepValue = separatorSelect.value
+                .replace(/\\n/g, '\n');
+            const combined = notes.map(n => n.text).join(sepValue);
+            combinedText.value = combined;
+            combinedCharCnt.textContent = combined.length;
+        }
+
+        // ── Storage ───────────────────────────────────────
+        function saveNotes() {
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)); } catch (e) { }
+        }
+        function loadNotes() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) { return []; }
+        }
+
+        // ── Helpers ───────────────────────────────────────
+        function escapeHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        function toast(msg) {
+            const el = document.createElement('div');
+            el.className = 'toast';
+            el.textContent = msg;
+            document.getElementById('toastContainer').appendChild(el);
+            setTimeout(() => el.remove(), 2500);
+        }
+    </script>
+</body>
+
+</html>
