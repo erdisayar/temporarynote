@@ -8,6 +8,10 @@
     <meta name="description"
         content="A temporary note-taking web page for accumulating voice-to-text snippets sequentially.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- KaTeX for LaTeX rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/contrib/auto-render.min.js"></script>
     <style>
         /* ── Reset & Variables ─────────────────────────────── */
         *,
@@ -527,6 +531,63 @@
             margin-top: 6px;
         }
 
+        /* ── LaTeX Rendering ───────────────────────────────── */
+        .note-text .katex-display {
+            margin: 12px 0;
+            padding: 10px 14px;
+            background: rgba(124, 106, 255, 0.06);
+            border-left: 3px solid var(--accent);
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+
+        .note-text .katex {
+            font-size: 1.1em;
+            color: var(--text);
+        }
+
+        /* ── LaTeX Preview ─────────────────────────────────── */
+        #latexPreview {
+            display: none;
+            margin-top: 10px;
+            padding: 14px 18px;
+            background: var(--surface);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            font-size: 0.95rem;
+            line-height: 1.7;
+            color: var(--text);
+            min-height: 40px;
+        }
+
+        #latexPreview.visible {
+            display: block;
+        }
+
+        #latexPreview .katex-display {
+            margin: 8px 0;
+            padding: 8px 12px;
+            background: rgba(124, 106, 255, 0.06);
+            border-left: 3px solid var(--accent);
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+
+        .preview-label {
+            display: none;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-top: 10px;
+            margin-bottom: 4px;
+        }
+
+        .preview-label.visible {
+            display: block;
+        }
+
         /* ── Footer ────────────────────────────────────────── */
         footer {
             position: relative;
@@ -551,8 +612,12 @@
         <!-- ── Input Card ──────────────────────────────── -->
         <section class="card" id="inputCard">
             <div class="card-title"><span class="icon">📝</span> Paste or Type Your Text</div>
-            <textarea id="inputArea" placeholder="Paste your voice-to-text output here…" spellcheck="false"></textarea>
+            <textarea id="inputArea"
+                placeholder="Paste your voice-to-text output here… (LaTeX supported: $...$, $$...$$)"
+                spellcheck="false"></textarea>
             <div class="char-count"><span id="charCount">0</span> characters</div>
+            <div class="preview-label" id="previewLabel">⚡ LaTeX Preview</div>
+            <div id="latexPreview"></div>
             <div class="btn-row">
                 <button class="btn btn-primary" id="addBtn" title="Add note (Ctrl+Enter)">
                     <span class="icon">➕</span> Add to Notes
@@ -648,14 +713,19 @@
         inputArea.focus();
 
         // ── Event Listeners ───────────────────────────────
+        const latexPreview = document.getElementById('latexPreview');
+        const previewLabel = document.getElementById('previewLabel');
+
         inputArea.addEventListener('input', () => {
             charCount.textContent = inputArea.value.length;
+            updateLatexPreview();
         });
 
         addBtn.addEventListener('click', addNote);
         clearInputBtn.addEventListener('click', () => {
             inputArea.value = '';
             charCount.textContent = '0';
+            updateLatexPreview();
             inputArea.focus();
         });
 
@@ -831,6 +901,8 @@
             });
 
             updateCombined();
+            // Render LaTeX in all notes after DOM is ready
+            renderLatexInNotes();
         }
 
         function reorderNotes(draggedId, targetId) {
@@ -867,6 +939,68 @@
             const d = document.createElement('div');
             d.textContent = str;
             return d.innerHTML;
+        }
+
+        // ── LaTeX Rendering ───────────────────────────────
+        const KATEX_OPTIONS = {
+            delimiters: [
+                { left: '$$', right: '$$', display: true },
+                { left: '$', right: '$', display: false },
+                { left: '\\(', right: '\\)', display: false },
+                { left: '\\[', right: '\\]', display: true },
+                // LaTeX environments
+                { left: '\\begin{equation}', right: '\\end{equation}', display: true },
+                { left: '\\begin{equation*}', right: '\\end{equation*}', display: true },
+                { left: '\\begin{align}', right: '\\end{align}', display: true },
+                { left: '\\begin{align*}', right: '\\end{align*}', display: true },
+                { left: '\\begin{gather}', right: '\\end{gather}', display: true },
+                { left: '\\begin{gather*}', right: '\\end{gather*}', display: true },
+                { left: '\\begin{pmatrix}', right: '\\end{pmatrix}', display: true },
+                { left: '\\begin{bmatrix}', right: '\\end{bmatrix}', display: true },
+                { left: '\\begin{cases}', right: '\\end{cases}', display: true },
+                { left: '\\begin{aligned}', right: '\\end{aligned}', display: true },
+            ],
+            // Custom macros commonly used in academic papers
+            macros: {
+                '\\mb': '\\mathbf',
+                '\\bs': '\\boldsymbol',
+                '\\bm': '\\boldsymbol',
+                '\\mc': '\\mathcal',
+                '\\mr': '\\mathrm',
+                '\\mbb': '\\mathbb',
+                '\\R': '\\mathbb{R}',
+                '\\N': '\\mathbb{N}',
+                '\\Z': '\\mathbb{Z}',
+                '\\T': '\\mathsf{T}',
+            },
+            throwOnError: false,
+            trust: true,
+            // Ignore unknown commands like \cite instead of erroring
+            strict: false
+        };
+
+        function renderLatexInNotes() {
+            if (typeof renderMathInElement !== 'function') return;
+            document.querySelectorAll('.note-text').forEach(el => {
+                renderMathInElement(el, KATEX_OPTIONS);
+            });
+        }
+
+        function hasLatex(str) {
+            return /\$\$.+?\$\$|\$.+?\$|\\\(.+?\\\)|\\\[.+?\\\]|\\begin\{/s.test(str);
+        }
+
+        function updateLatexPreview() {
+            const text = inputArea.value;
+            if (hasLatex(text) && typeof renderMathInElement === 'function') {
+                latexPreview.textContent = text;
+                latexPreview.classList.add('visible');
+                previewLabel.classList.add('visible');
+                renderMathInElement(latexPreview, KATEX_OPTIONS);
+            } else {
+                latexPreview.classList.remove('visible');
+                previewLabel.classList.remove('visible');
+            }
         }
 
         function toast(msg) {
